@@ -11,7 +11,7 @@ dev_t dev = 0;
 static struct class *dev_class;
 static struct cdev etx_cdev;
 #define BUFFER_SIZE 1024
-char *device_buf ;
+char device_buf[BUFFER_SIZE] ;
 
 static int __init etx_driver_init(void);
 static void __exit etx_driver_exit(void);
