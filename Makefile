@@ -1,6 +1,6 @@
-obj-m := abcde.o
-obj-m += modified.o
-obj-m += 2modified.o
+obj-m := usbdriver.o
+obj-m := usbdriver_read_write.o
+obj-. := modified.o
 all:
 		make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 

@@ -1,93 +1,3 @@
-// #include <linux/module.h>
-// #include <linux/device.h>
-// #include <linux/kernel.h>
-// #include <linux/init.h>
-// #include <linux/fs.h>
-// #include <linux/kdev_t.h>
-
-// #define DEVICE_NAME "Pradytronix"
-
-// dev_t dev = 0 ;
-// static struct class *dev_class ;
-// static struct cdev p_cdev ;
-
-// static int fil_open(struct inode *finode , struct file *file) ;
-// static int fil_release(struct inode *finode , struct file *file) ;
-// static ssize_t fil_read(struct file *file , const char __user *buff ,size_t len , loff_t *off);
-// static ssize_t fil_write(struct file *file , const char __user *buff ,size_t len , loff_t *off);
-
-// static struct file_operations fops = {
-//     .owner = THIS_MODULE ,
-//     .read = fil_read ,
-//     .open = fil_open ,
-//     .write = fil_write,
-//     .release = fil_release
-// };
-// static int fil_open(struct inode *finode , struct file *file){
-//     printk(KERN_INFO"Driver is opened \n") ;
-//     return 0 ;
-// }
-// static int fil_release(struct inode *finode , struct file *file){
-//     printk(KERN_INFO"Driver is released \n") ;
-//     return 0 ;
-// }
-// static ssize_t fil_read(struct file *file , const char __user *buff , size_t len , loff_t *off ){
-//     printk(KERN_INFO"Driver is being read \n") ;
-//     return 0; 
-// }
-// static ssize_t fil_write(struct file *file , const char __user *buff , size_t len , loff_t *off ){
-//     printk(KERN_INFO"Driver is writing \n") ;
-//     return len; 
-// }
-// static int __init startmodule(void){
-    
-//     if( (alloc_chrdev_region(&dev , 0 , 1 ,DEVICE_NAME )) < 0 ){
-//         printk(KERN_INFO" cannot allocate major number to device \n" ) ;
-//         return -1 ;
-//     }
-//     printk(KERN_INFO " Major number : %d and Minor number : %d \n",MAJOR(dev) , MINOR(dev)) ;
-//     printk(KERN_INFO "Kernel Module Installed Successfully \n") ; 
-
-//     /*creating cdev structure  */
-//     cdev_init( &p_cdev , &fops ) ;
-
-//     /*adding cdevice to system  */
-//     if( cdev_add(&p_cdev , dev , 1) < 0 ){
-//         printk(KERN_INFO"cannot add the device to system\n" ) ;
-//         goto r_class ;
-//     }
-
-//     /* creating struct class */
-//     if( (dev_class = class_create(THIS_MODULE,"PRADY_CLASS")) == NULL){
-//         printk(KERN_INFO "Cannot create class \n");
-//         goto r_class ;
-//     }
-//     // creating device 
-//     if((device_create(dev_class,NULL,dev,NULL,"PRADY_DEVICE"))== NULL){
-//         printk(KERN_INFO"Cannot create device\n");
-//         goto r_device ;
-//     }
-//     return 0 ;
-// r_class:
-//     class_destroy(dev_class) ;
-// r_device:
-//     unregister_chrdev_region(dev,1);
-//     return -1 ; 
-// }
-
-// static void __exit closemodule(void){
-//     device_destroy(dev_class,dev);
-//     class_destroy(dev_class);    
-//     printk(KERN_INFO"trying to unregister") ;
-//     cdev_del(&p_cdev);
-//     unregister_chrdev_region(dev,1) ;
-//     printk(KERN_INFO"kernel module removed successfully \n " ) ;
-
-// }
-// module_init(startmodule) ;
-// module_exit(closemodule) ;
-// MODULE_LICENSE("GPL") ;
-
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -99,7 +9,9 @@
 dev_t dev = 0;
 static struct class *dev_class;
 static struct cdev etx_cdev;
- 
+#define BUFFER_SIZE 1024
+char *device_buf ;
+
 static int __init etx_driver_init(void);
 static void __exit etx_driver_exit(void);
 static int etx_open(struct inode *inode, struct file *file);
@@ -118,25 +30,47 @@ static struct file_operations fops =
  
 static int etx_open(struct inode *inode, struct file *file)
 {
-        printk(KERN_INFO "Driver Open Function Called...!!!\n");
+        printk(KERN_INFO "Driver Opened\n");
         return 0;
 }
  
 static int etx_release(struct inode *inode, struct file *file)
 {
-        printk(KERN_INFO "Driver Release Function Called...!!!\n");
+        printk(KERN_INFO "Driver Released\n");
         return 0;
 }
  
 static ssize_t etx_read(struct file *filp, char __user *buf, size_t len, loff_t *off)
 {
-        printk(KERN_INFO "Driver Read Function Called...!!!\n");
-        return 0;
+        printk(KERN_INFO "Driver Reading \n");
+        if(*off > BUFFER_SIZE){
+                printk(KERN_INFO"OFF > BUFFER_SIZE");
+                return 0 ;
+        }
+        if(*off + len > BUFFER_SIZE){
+                len = BUFFER_SIZE - *off ;
+        }
+        printk(KERN_INFO"Reading initiated \n");
+        if(copy_to_user(buf ,device_buf + *off, len ) != 0)
+                return -EFAULT ;
+        *off += len ;
+        return len;
 }
 static ssize_t etx_write(struct file *filp, const char __user *buf, size_t len, loff_t *off)
 {
-        printk(KERN_INFO "Driver Write Function Called...!!!\n");
-        return len;
+        int bytes_to_copy ;
+        printk(KERN_INFO "Driver Writing\n");
+        if(BUFFER_SIZE - *off - 1 <= len){
+                bytes_to_copy = BUFFER_SIZE - *off - 1 ;
+                printk(KERN_INFO"buff - *off -1 <= len");
+        }else{
+                bytes_to_copy = len ;
+                printk(KERN_INFO"buff - *off - 1 > len " );
+        }
+        copy_from_user(device_buf + *off ,buf, bytes_to_copy);
+        device_buf[bytes_to_copy + *off] = '\0' ;
+        *off += bytes_to_copy ;
+        return bytes_to_copy;
 }
  
  
@@ -169,7 +103,7 @@ static int __init etx_driver_init(void)
             printk(KERN_INFO "Cannot create the Device 1\n");
             goto r_device;
         }
-        printk(KERN_INFO "Device Driver Insert...Done!!!\n");
+        printk(KERN_INFO "Device Driver Inserted\n");
     return 0;
  
 r_device:
@@ -185,13 +119,10 @@ void __exit etx_driver_exit(void)
         class_destroy(dev_class);
         cdev_del(&etx_cdev);
         unregister_chrdev_region(dev, 1);
-    printk(KERN_INFO "Device Driver Remove...Done!!!\n");
+    printk(KERN_INFO "Device Driver Removed\n");
 }
  
 module_init(etx_driver_init);
 module_exit(etx_driver_exit);
  
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("EmbeTronicX <embetronicx@gmail.com or admin@embetronicx.com>");
-MODULE_DESCRIPTION("A simple device driver");
-MODULE_VERSION("1.3");
