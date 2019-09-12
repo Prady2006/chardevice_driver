@@ -3,6 +3,7 @@
 #include <linux/module.h>
 #include <linux/kdev_t.h>
 #include <linux/fs.h>
+#include <linux/uaccess.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
  
@@ -19,14 +20,6 @@ static int etx_release(struct inode *inode, struct file *file);
 static ssize_t etx_read(struct file *filp, char __user *buf, size_t len,loff_t * off);
 static ssize_t etx_write(struct file *filp, const char *buf, size_t len, loff_t * off);
  
-static struct file_operations fops =
-{
-.owner          = THIS_MODULE,
-.read           = etx_read,
-.write          = etx_write,
-.open           = etx_open,
-.release        = etx_release,
-};
  
 static int etx_open(struct inode *inode, struct file *file)
 {
@@ -43,6 +36,8 @@ static int etx_release(struct inode *inode, struct file *file)
 static ssize_t etx_read(struct file *filp, char __user *buf, size_t len, loff_t *off)
 {
         printk(KERN_INFO "Driver Reading \n");
+        // if (*off == NULL)
+        //         return 0 ;
         if(*off > BUFFER_SIZE){
                 printk(KERN_INFO"OFF > BUFFER_SIZE");
                 return 0 ;
@@ -67,12 +62,22 @@ static ssize_t etx_write(struct file *filp, const char __user *buf, size_t len, 
                 bytes_to_copy = len ;
                 printk(KERN_INFO"buff - *off - 1 > len " );
         }
-        copy_from_user(device_buf + *off ,buf, bytes_to_copy);
+        ssize_t uncopied_bytes = copy_from_user(device_buf + *off ,buf, bytes_to_copy);
+        printk(KERN_INFO"passed copy_from_user\n");
         device_buf[bytes_to_copy + *off] = '\0' ;
-        *off += bytes_to_copy ;
+        printk(KERN_INFO"passed null addition\n");
+        *off += (bytes_to_copy - 1) ;
+        printk(KERN_INFO"offset updated");
         return bytes_to_copy;
 }
- 
+static struct file_operations fops =
+{
+.owner          = THIS_MODULE,
+.read           = etx_read,
+.write          = etx_write,
+.open           = etx_open,
+.release        = etx_release,
+};
  
 static int __init etx_driver_init(void)
 {
